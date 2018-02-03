@@ -1,12 +1,23 @@
 var express = require('express');
 var app = express();
+
 var bodyParser = require('body-parser');
 var morgan = require('morgan');
 var mongoose = require('mongoose');
 
+var _ = require('underscore');
+
 var jwt = require('jsonwebtoken');
 var config = require('./config');
 var User = require('./app/models/user');
+
+var sqlite3 = require('sqlite3').verbose()
+//var db = new sqlite3.Database(':memory:')
+var db = new sqlite3.Database('./lifetracker.db')
+
+app.set("views", __dirname + "/views");
+app.set("view engine", "jade");
+app.engine('.jade', require('jade').__express);
 
 var port = process.env.PORT || 8080;
 mongoose.connect(config.database);
@@ -15,11 +26,126 @@ app.set('superSecret', config.secret);
 app.use(bodyParser.urlencoded({ extended:false }));
 app.use(bodyParser.json());
 
+app.use(express.static('resources'))
+
 app.use(morgan('dev'));
 
 app.get('/', function(req, res){
+  res.render("index");
+});
+
+/*
+app.get('/', function(req, res){
   res.send('Hello! This API is at http://localhost:'+ port +'/api');
 });
+*/
+
+app.get('/metrics', function(req, res){
+  getAllMetrics.then(function(metrics){
+    res.send(metrics);
+  })
+});
+
+/* Get recorded instances of a given metric(s), optionally within a given number of days */
+app.get('/data', function(req, res){
+  data = {};
+  getInstancesForRange(req.query.metric.split('|'), req.query.range).then(function(instances){
+    _.each(instances, function(instance){
+      var name = instance['name'],
+          date = instance['date'],
+          count = instance['count'];
+
+      if(data[name] === undefined){
+        data[name] = {};
+      }
+
+      data[name][date] = count;
+
+    });
+
+    res.send(data);
+  });
+  
+});
+
+/*
+  {
+    "user": "",
+    "auth": "",
+    'metrics':[{
+      'name': '', // String
+      'desc': '', // String
+      'unit': '', // String
+      'type': '', // ['count', 'binary', 'increment']
+      'dflt': '', // Float
+      'arch': '',  // Date
+      'deleted': '', // Bool
+      'modified': '' // Timestamp
+    }],
+    'instances':[{
+      'name': '', // String
+      'date': '', // Date
+      'count': '', // Float
+      'details': '', // String
+      'deleted': '', // Bool
+      'modified': '' // Timestamp
+    }]
+
+  }
+*/
+
+/* post new metric or instance data to be synced with the server database */
+app.post('/submit', function(req, res){
+  console.log('post to /submit');
+  console.log(req.body);
+  console.log(req.body.user);
+  console.log(req.body.auth);
+  console.log(req.body.instances);
+
+  // TODO: user auth
+
+
+  // why is 'unit' and 'type' on instances table?
+
+  // need 'modified_date' on metrics/instances
+
+  // new metrics
+
+  // deleted metrics, how?
+
+  // archived metrics
+
+  // edited metrics
+
+
+  _.each(req.body.instances, function(instance){
+    // new instances
+    // edited instances
+    // deleted instances, how?
+    console.log(instance);
+    console.log(instance.name);
+    db.all("SELECT name, desc, unit, type, dflt, arch FROM metrics WHERE name=?", [instance.name], function(err, rows){
+      console.log(rows.length);
+      if(rows.length < 1){
+        res.send("metric does not exist: "+ instance.name);
+      }
+    });
+
+
+  });
+
+  res.send();
+
+});
+
+
+
+
+
+
+
+
+
 
 app.get('/setup', function(req, res) {
 
@@ -38,6 +164,8 @@ app.get('/setup', function(req, res) {
     res.json({ success: true });
   });
 });
+
+
 
 // API ROUTES -------------------
 
@@ -131,3 +259,34 @@ app.use('/api', apiRoutes);
 
 app.listen(port);
 console.log('Magic happens at http://localhost:'+ port);
+
+
+/* db util functions */
+
+var getAllMetrics = function(){
+  return new Promise(function(resolve, reject){
+    db.all('SELECT name, desc, unit, type, dflt, arch FROM metrics', function(err, rows){
+      resolve(rows);
+    });
+  });
+};
+
+var getInstancesForRange = function(metrics, range){
+  return new Promise(function(resolve, reject){
+    metricsParam = "('" + metrics.join("','") + "')"
+  
+    var query = 'SELECT name, date, count FROM instances WHERE name in '+ metricsParam;
+    if(range != undefined){
+      var date = new Date();
+      date.setDate(date.getDate() - range);
+      query += ' AND date >= "'+ date.toISOString().substring(0, 10) + '"';
+    }
+
+    console.log(query);
+    
+    db.all(query, function (err, rows) {
+      resolve(rows);
+    });
+
+  });
+};
