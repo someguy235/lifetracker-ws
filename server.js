@@ -41,7 +41,7 @@ app.get('/', function(req, res){
 */
 
 app.get('/metrics', function(req, res){
-  getAllMetrics.then(function(metrics){
+  getAllMetrics().then(function(metrics){
     res.send(metrics);
   })
 });
@@ -97,10 +97,10 @@ app.get('/data', function(req, res){
 /* post new metric or instance data to be synced with the server database */
 app.post('/submit', function(req, res){
   console.log('post to /submit');
-  console.log(req.body);
-  console.log(req.body.user);
-  console.log(req.body.auth);
-  console.log(req.body.instances);
+  // console.log(req.body);
+  // console.log(req.body.user);
+  // console.log(req.body.auth);
+  // console.log(req.body.instances);
 
   // TODO: user auth
 
@@ -117,24 +117,42 @@ app.post('/submit', function(req, res){
 
   // edited metrics
 
-
+  //
+  // handle instances
+  //
   _.each(req.body.instances, function(instance){
     // new instances
     // edited instances
     // deleted instances, how?
-    console.log(instance);
-    console.log(instance.name);
-    db.all("SELECT name, desc, unit, type, dflt, arch FROM metrics WHERE name=?", [instance.name], function(err, rows){
-      console.log(rows.length);
-      if(rows.length < 1){
-        res.send("metric does not exist: "+ instance.name);
-      }
-    });
+    // console.log("instance:");
+    // console.log(instance);
 
+    console.log("instance.name");
+    console.log(instance.name);
+
+    //check that metric exists
+    // getMetricByName(instance.name).then(function(metric){
+    //   console.log("metric");
+    //   console.log(metric);
+    //   console.log(metric.length);
+    //   if(metric.length === 0){
+    //     // res.send("metric does not exist: "+ instance.name);
+    //     //TODO: maybe add the instance anyway?
+    //     console.error("metric does not exist: "+ instance.name);
+    //     res.status(204);
+    //   }
+
+    getInstanceById(instance.id).then(function(instance){
+
+
+
+
+    });
 
   });
 
-  res.send();
+  console.log("end of method");
+  // res.send();
 
 });
 
@@ -290,3 +308,21 @@ var getInstancesForRange = function(metrics, range){
 
   });
 };
+
+var getMetricByName = function(name){
+  return new Promise(function(resolve, reject){
+    db.all("SELECT * FROM metrics WHERE name=?", [name], function(err, metrics){
+      // console.log("metrics");
+      // console.log(metrics);
+      resolve(metrics);
+    });
+  });
+}
+
+var getInstanceById = function(id){
+  return new Promise(function(resolve, reject){
+    db.all("SELECT * FROM instances WHERE id=?", [id], function(err, instance){
+      resolve(instance);
+    })
+  })
+}
