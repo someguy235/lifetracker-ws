@@ -3,7 +3,7 @@ var app = express();
 
 var bodyParser = require('body-parser');
 var morgan = require('morgan');
-var mongoose = require('mongoose');
+// var mongoose = require('mongoose');
 
 var _ = require('underscore');
 
@@ -20,8 +20,8 @@ app.set("view engine", "jade");
 app.engine('.jade', require('jade').__express);
 
 var port = process.env.PORT || 8080;
-mongoose.connect(config.database);
-app.set('superSecret', config.secret);
+// mongoose.connect(config.database);
+// app.set('superSecret', config.secret);
 
 app.use(bodyParser.urlencoded({ extended:false }));
 app.use(bodyParser.json());
@@ -107,7 +107,7 @@ app.post('/submit', function(req, res){
 
   // why is 'unit' and 'type' on instances table?
 
-  // need 'modified_date' on metrics/instances
+  // need 'modified_date', 'deleted' on metrics/instances
 
   // new metrics
 
@@ -120,16 +120,17 @@ app.post('/submit', function(req, res){
   //
   // handle instances
   //
-  _.each(req.body.instances, function(instance){
+  _.each(req.body.instances, function(submitInstance){
     // new instances
     // edited instances
     // deleted instances, how?
+    //  never delete, just mark 'deleted'
     // console.log("instance:");
     // console.log(instance);
 
-    console.log("instance.name");
-    console.log(instance.name);
-
+    console.log("submitInstance.name");
+    console.log(submitInstance.name);
+    console.log(submitInstance.modified);
     //check that metric exists
     // getMetricByName(instance.name).then(function(metric){
     //   console.log("metric");
@@ -142,11 +143,29 @@ app.post('/submit', function(req, res){
     //     res.status(204);
     //   }
 
-    getInstanceById(instance.id).then(function(instance){
+    // getInstanceById(instance.id).then(function(instance){
+    getCurrentInstancesByNameAndDate(submitInstance.name, submitInstance.date).then(function(existInstance){
+      console.log("existInstance:");
+      console.log(existInstance);
+      console.log(existInstance.modified);
+      console.log(submitInstance.modified > existInstance.modified);
+      if(existInstance === undefined || existInstance.length < 1){ //TODO: correct check?
+        // do new instance insert
+        console.log("no existing instance found")
+      }else {
+
+        if(submitInstance.modified > existInstance[0].modified){
+          // do update instance 
+          console.log("found earlier instance to update");
 
 
 
+        }else{ //existInstance.modified_date > submitInstance.modified_date
+          // submit is out of date, don't update
+          console.log("found newer existing instance");
 
+        }
+      }
     });
 
   });
@@ -322,6 +341,15 @@ var getMetricByName = function(name){
 var getInstanceById = function(id){
   return new Promise(function(resolve, reject){
     db.all("SELECT * FROM instances WHERE id=?", [id], function(err, instance){
+      resolve(instance);
+    })
+  })
+}
+
+var getCurrentInstancesByNameAndDate = function(name, date){
+  return new Promise(function(resolve, reject){
+    db.all("SELECT * FROM instances WHERE name=? AND date=? ORDER BY modified DESC LIMIT 1", [name, date], function(err, instance){
+      // console.log(err);
       resolve(instance);
     })
   })
