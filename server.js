@@ -93,6 +93,24 @@ app.get('/data', function(req, res){
 
   }
 */
+/*
+{
+  content-type: application/json
+
+  raw
+
+	"user": "testuser",
+	"auth": "authstring",
+	"instances":[{
+		"name": "Lunch", 
+		"date": "2019-08-01", 
+		"count": "1", 
+		"details": "Roman's", 
+		"deleted": "", 
+		"modified": "2019-08-01T06:30:00" 
+	}]
+}
+*/
 
 /* post new metric or instance data to be synced with the server database */
 app.post('/submit', function(req, res){
@@ -145,25 +163,43 @@ app.post('/submit', function(req, res){
 
     // getInstanceById(instance.id).then(function(instance){
     getCurrentInstancesByNameAndDate(submitInstance.name, submitInstance.date).then(function(existInstance){
+      
       console.log("existInstance:");
       console.log(existInstance);
       console.log(existInstance.modified);
       console.log(submitInstance.modified > existInstance.modified);
+
       if(existInstance === undefined || existInstance.length < 1){ //TODO: correct check?
         // do new instance insert
-        console.log("no existing instance found")
+        console.log("no existing instance found, inserting new")
+        insertInstance(submitInstance).then(function(error){
+          console.log("insertInstance return");
+          console.log(error);
+          if(error === undefined){
+            res.send(200);
+          }else{
+            res.send(error);
+          }
+        });
       }else {
 
         if(submitInstance.modified > existInstance[0].modified){
           // do update instance 
           console.log("found earlier instance to update");
-
-
-
+          updateInstance(submitInstance).then(function(error){
+            console.log("updateInstance return");
+            console.log(error);
+            if(error === undefined){
+              res.send(200);
+            }else{
+              res.send(error);
+            }
+          });  
         }else{ //existInstance.modified_date > submitInstance.modified_date
           // submit is out of date, don't update
           console.log("found newer existing instance");
-
+          // TODO: what status code here?
+          res.send("found newer existing instance")
         }
       }
     });
@@ -297,8 +333,11 @@ app.use('/api', apiRoutes);
 app.listen(port);
 console.log('Magic happens at http://localhost:'+ port);
 
-
+/* ***************** */
 /* db util functions */
+/* ***************** */
+
+/* get functions */
 
 var getAllMetrics = function(){
   return new Promise(function(resolve, reject){
@@ -353,4 +392,56 @@ var getCurrentInstancesByNameAndDate = function(name, date){
       resolve(instance);
     })
   })
+}
+
+/* insert functions */
+
+var insertInstance = function(instance){
+  return new Promise(function(resolve, reject){
+    db.run("INSERT INTO instances (name, date, count, details, deleted, modified) VALUES($name, $date, $count, $details, $deleted, $modified)", {
+      $name: instance.name,
+      $date: instance.date, 
+      $count: instance.count, 
+      $details: instance.details, 
+      $deleted: instance.deleted, 
+      $modified: instance.modified
+    }, function(error){
+      if(error != null){
+        console.log("insert failed")
+        console.log(error);
+        reject(error);
+      }else{
+        console.log("insert success");
+        console.log(error);
+        resolve();
+      }
+    });
+
+  });
+}
+
+/* update functions */
+
+var updateInstance = function(instance){
+  return new Promise(function(resolve, reject){
+    db.run("UPDATE instances SET (count, details, deleted, modified) VALUES($count, $details, $deleted, $modified) WHERE name = $name AND date = $date",{
+      $count: instance.count,
+      $details: instance.details,
+      $deleted: instance.deleted,
+      $modified: instance.modified,
+      $name: instance.name,
+      $date: instance.date
+    }, function(error){
+      if(error != null){
+        console.log("update failed");
+        console.log(error);
+        reject(error);
+      }else{
+        console.log("update success");
+        console.log(error);
+        resolve();
+      }
+
+    });
+  });
 }
