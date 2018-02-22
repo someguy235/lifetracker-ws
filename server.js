@@ -41,7 +41,7 @@ app.get('/', function(req, res){
 */
 
 app.get('/metrics', function(req, res){
-  getAllMetrics().then(function(metrics){
+  getAllMetrics(req.query.user).then(function(metrics){
     res.send(metrics);
   })
 });
@@ -49,7 +49,7 @@ app.get('/metrics', function(req, res){
 /* Get recorded instances of a given metric(s), optionally within a given number of days */
 app.get('/data', function(req, res){
   data = {};
-  getInstancesForRange(req.query.metric.split('|'), req.query.range).then(function(instances){
+  getInstancesForRange(req.query.user, req.query.metric.split('|'), req.query.range).then(function(instances){
     _.each(instances, function(instance){
       var name = instance['name'],
           date = instance['date'],
@@ -68,31 +68,6 @@ app.get('/data', function(req, res){
   
 });
 
-/*
-  {
-    "user": "",
-    "auth": "",
-    'metrics':[{
-      'name': '', // String
-      'desc': '', // String
-      'unit': '', // String
-      'type': '', // ['count', 'binary', 'increment']
-      'dflt': '', // Float
-      'arch': '',  // Date
-      'deleted': '', // Bool
-      'modified': '' // Timestamp
-    }],
-    'instances':[{
-      'name': '', // String
-      'date': '', // Date
-      'count': '', // Float
-      'details': '', // String
-      'deleted': '', // Bool
-      'modified': '' // Timestamp
-    }]
-
-  }
-*/
 /*
 {
   content-type: application/json
@@ -120,12 +95,8 @@ app.post('/submit', function(req, res){
   // console.log(req.body.auth);
   // console.log(req.body.instances);
 
-  // TODO: user auth
+  // TODO: user auth, middleware from jwt example?
 
-
-  // why is 'unit' and 'type' on instances table?
-
-  // need 'modified_date', 'deleted' on metrics/instances
 
   // new metrics
 
@@ -136,45 +107,16 @@ app.post('/submit', function(req, res){
   // edited metrics
 
   //
-  // handle instances
+  // handle metrics
   //
-  _.each(req.body.instances, function(submitInstance){
-    // new instances
-    // edited instances
-    // deleted instances, how?
-    //  never delete, just mark 'deleted'
-    // console.log("instance:");
-    // console.log(instance);
+  _.each(req.body.metrics, function(submitMetric){
+    console.log("submitMetric.name");
+    console.log(submitMetric.name);
+    getMetricByName(submitMetric.user, submitMetric.name).then(function(existMetric){
 
-    console.log("submitInstance.name");
-    console.log(submitInstance.name);
-    console.log(submitInstance.modified);
-    //check that metric exists
-    // getMetricByName(instance.name).then(function(metric){
-    //   console.log("metric");
-    //   console.log(metric);
-    //   console.log(metric.length);
-    //   if(metric.length === 0){
-    //     // res.send("metric does not exist: "+ instance.name);
-    //     //TODO: maybe add the instance anyway?
-    //     console.error("metric does not exist: "+ instance.name);
-    //     res.status(204);
-    //   }
-
-    // getInstanceById(instance.id).then(function(instance){
-    getCurrentInstancesByNameAndDate(submitInstance.name, submitInstance.date).then(function(existInstance){
-      
-      console.log("existInstance:");
-      console.log(existInstance);
-      console.log(existInstance.modified);
-      console.log(submitInstance.modified > existInstance.modified);
-
-      if(existInstance === undefined || existInstance.length < 1){ //TODO: correct check?
-        // do new instance insert
-        console.log("no existing instance found, inserting new")
-        insertInstance(submitInstance).then(function(error){
-          console.log("insertInstance return");
-          console.log(error);
+      if(existMetric === undefined || existMetric.length < 1){
+        // do new metric insert
+        insertMetric(submitMetric).then(function(error){
           if(error === undefined){
             res.send(200);
           }else{
@@ -182,13 +124,46 @@ app.post('/submit', function(req, res){
           }
         });
       }else {
+        if(submitMetric.modified > existMetric[0].modified){
+          // do update instance 
+          updateMetric(submitMetric).then(function(error){
+            if(error === undefined){
+              res.send(200);
+            }else{
+              res.send(error);
+            }
+          });  
+        }else{ //existMetric.modified_date > submitMetric.modified_date
+          // submit is out of date, don't update
+          // TODO: what status code here?
+          res.send("found newer existing metric")
+        }
+      }
+    });
 
+  });
+
+  //
+  // handle instances
+  //
+  _.each(req.body.instances, function(submitInstance){
+    console.log("submitInstance.name");
+    console.log(submitInstance.name);
+    getCurrentInstancesByNameAndDate(submitInstance.user, submitInstance.name, submitInstance.date).then(function(existInstance){
+
+      if(existInstance === undefined || existInstance.length < 1){
+        // do new instance insert
+        insertInstance(submitInstance).then(function(error){
+          if(error === undefined){
+            res.send(200);
+          }else{
+            res.send(error);
+          }
+        });
+      }else {
         if(submitInstance.modified > existInstance[0].modified){
           // do update instance 
-          console.log("found earlier instance to update");
           updateInstance(submitInstance).then(function(error){
-            console.log("updateInstance return");
-            console.log(error);
             if(error === undefined){
               res.send(200);
             }else{
@@ -197,7 +172,6 @@ app.post('/submit', function(req, res){
           });  
         }else{ //existInstance.modified_date > submitInstance.modified_date
           // submit is out of date, don't update
-          console.log("found newer existing instance");
           // TODO: what status code here?
           res.send("found newer existing instance")
         }
@@ -206,8 +180,7 @@ app.post('/submit', function(req, res){
 
   });
 
-  console.log("end of method");
-  // res.send();
+  // console.log("end of method");
 
 });
 
@@ -339,19 +312,19 @@ console.log('Magic happens at http://localhost:'+ port);
 
 /* get functions */
 
-var getAllMetrics = function(){
+var getAllMetrics = function(user){
   return new Promise(function(resolve, reject){
-    db.all('SELECT name, desc, unit, type, dflt, arch FROM metrics', function(err, rows){
+    db.all('SELECT name, desc, unit, type, dflt, arch FROM metrics where user=?', [user], function(err, rows){
       resolve(rows);
     });
   });
 };
 
-var getInstancesForRange = function(metrics, range){
+var getInstancesForRange = function(user, metrics, range){
   return new Promise(function(resolve, reject){
     metricsParam = "('" + metrics.join("','") + "')"
   
-    var query = 'SELECT name, date, count FROM instances WHERE name in '+ metricsParam;
+    var query = 'SELECT name, date, count FROM instances WHERE user=? AND name in '+ metricsParam;
     if(range != undefined){
       var date = new Date();
       date.setDate(date.getDate() - range);
@@ -360,16 +333,16 @@ var getInstancesForRange = function(metrics, range){
 
     console.log(query);
     
-    db.all(query, function (err, rows) {
+    db.all(query, [user], function (err, rows) {
       resolve(rows);
     });
 
   });
 };
 
-var getMetricByName = function(name){
+var getMetricByName = function(user, name){
   return new Promise(function(resolve, reject){
-    db.all("SELECT * FROM metrics WHERE name=?", [name], function(err, metrics){
+    db.all("SELECT * FROM metrics WHERE user=? AND name=?", [user, name], function(err, metrics){
       // console.log("metrics");
       // console.log(metrics);
       resolve(metrics);
@@ -385,9 +358,9 @@ var getInstanceById = function(id){
   })
 }
 
-var getCurrentInstancesByNameAndDate = function(name, date){
+var getCurrentInstancesByNameAndDate = function(user, name, date){
   return new Promise(function(resolve, reject){
-    db.all("SELECT * FROM instances WHERE name=? AND date=? ORDER BY modified DESC LIMIT 1", [name, date], function(err, instance){
+    db.all("SELECT * FROM instances WHERE user=? AND name=? AND date=? ORDER BY modified DESC LIMIT 1", [user, name, date], function(err, instance){
       // console.log(err);
       resolve(instance);
     })
@@ -398,7 +371,8 @@ var getCurrentInstancesByNameAndDate = function(name, date){
 
 var insertInstance = function(instance){
   return new Promise(function(resolve, reject){
-    db.run("INSERT INTO instances (name, date, count, details, deleted, modified) VALUES($name, $date, $count, $details, $deleted, $modified)", {
+    db.run("INSERT INTO instances (user, name, date, count, details, deleted, modified) VALUES($user, $name, $date, $count, $details, $deleted, $modified)", {
+      $user: instance.user,
       $name: instance.name,
       $date: instance.date, 
       $count: instance.count, 
@@ -407,41 +381,76 @@ var insertInstance = function(instance){
       $modified: instance.modified
     }, function(error){
       if(error != null){
-        console.log("insert failed")
-        console.log(error);
         reject(error);
       }else{
-        console.log("insert success");
-        console.log(error);
         resolve();
       }
     });
-
   });
+}
+
+var insertMetric = function(metric){
+  return new Promise(function(resolve, reject){
+    db.run("INSERT INTO metrics (user, name, desc, unit, type, dflt, deleted, arch, modified) VALUES($user, $name, $desc, $unit, $type, $dflt, $deleted, $arch, $modified)", {
+      $user: metric.user,
+      $name: metric.name,
+      $desc: metric.date, 
+      $unit: metric.count, 
+      $type: metric.details, 
+      $dflt: metric.dflt,
+      $deleted: metric.deleted, 
+      $arch: metric.arch,
+      $modified: metric.modified
+    }, function(error){
+      if(error != null){
+        reject(error);
+      }else{
+        resolve();
+      }
+    });
+  })
 }
 
 /* update functions */
 
 var updateInstance = function(instance){
   return new Promise(function(resolve, reject){
-    db.run("UPDATE instances SET (count, details, deleted, modified) VALUES($count, $details, $deleted, $modified) WHERE name = $name AND date = $date",{
+    db.run("UPDATE instances SET (count, details, deleted, modified) VALUES($count, $details, $deleted, $modified) WHERE user = $user AND name = $name AND date = $date",{
       $count: instance.count,
       $details: instance.details,
       $deleted: instance.deleted,
       $modified: instance.modified,
+      $user: instance.user,
       $name: instance.name,
       $date: instance.date
     }, function(error){
       if(error != null){
-        console.log("update failed");
-        console.log(error);
         reject(error);
       }else{
-        console.log("update success");
-        console.log(error);
         resolve();
       }
+    });
+  });
+}
 
+var updateMetric = function(metric){
+  return new Promise(function(resolve, reject){
+    db.run("UPDATE metrics SET (desc, unit, type, dflt, deleted, arch, modified) VALUES(desc, unit, type, dflt, deleted, arch, modified) WHERE user = $user AND name = $name",{
+      $user: metric.user,
+      $name: metric.name,
+      $desc: metric.desc,
+      $unit: metric.unit,
+      $type: metric.type,
+      $dflt: metric.dflt,
+      $deleted: metric.deleted,
+      $arch: metric.arch,
+      $modified: metric.modified
+    }, function(error){
+      if(error != null){
+        reject(error);
+      }else{
+        resolve();
+      }
     });
   });
 }
