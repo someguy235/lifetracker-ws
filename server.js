@@ -90,13 +90,15 @@ app.get('/data', function(req, res){
 /* post new metric or instance data to be synced with the server database */
 app.post('/submit', function(req, res){
   console.log('post to /submit');
+  //TODO: validate this.
+  var user = req.body.user;
   // console.log(req.body);
   // console.log(req.body.user);
   // console.log(req.body.auth);
   // console.log(req.body.instances);
 
   // TODO: user auth, middleware from jwt example?
-
+  // is valid user/auth token combo?
 
   // new metrics
 
@@ -112,11 +114,12 @@ app.post('/submit', function(req, res){
   _.each(req.body.metrics, function(submitMetric){
     console.log("submitMetric.name");
     console.log(submitMetric.name);
-    getMetricByName(submitMetric.user, submitMetric.name).then(function(existMetric){
+    console.log(submitMetric);
+    getMetricByName(user, submitMetric.name).then(function(existMetric){
 
       if(existMetric === undefined || existMetric.length < 1){
         // do new metric insert
-        insertMetric(submitMetric).then(function(error){
+        insertMetric(user, submitMetric).then(function(error){
           if(error === undefined){
             res.send(200);
           }else{
@@ -126,7 +129,7 @@ app.post('/submit', function(req, res){
       }else {
         if(submitMetric.modified > existMetric[0].modified){
           // do update instance 
-          updateMetric(submitMetric).then(function(error){
+          updateMetric(user, submitMetric).then(function(error){
             if(error === undefined){
               res.send(200);
             }else{
@@ -149,11 +152,11 @@ app.post('/submit', function(req, res){
   _.each(req.body.instances, function(submitInstance){
     console.log("submitInstance.name");
     console.log(submitInstance.name);
-    getCurrentInstancesByNameAndDate(submitInstance.user, submitInstance.name, submitInstance.date).then(function(existInstance){
+    getCurrentInstancesByNameAndDate(user, submitInstance.name, submitInstance.date).then(function(existInstance){
 
       if(existInstance === undefined || existInstance.length < 1){
         // do new instance insert
-        insertInstance(submitInstance).then(function(error){
+        insertInstance(user, submitInstance).then(function(error){
           if(error === undefined){
             res.send(200);
           }else{
@@ -163,7 +166,7 @@ app.post('/submit', function(req, res){
       }else {
         if(submitInstance.modified > existInstance[0].modified){
           // do update instance 
-          updateInstance(submitInstance).then(function(error){
+          updateInstance(user, submitInstance).then(function(error){
             if(error === undefined){
               res.send(200);
             }else{
@@ -369,10 +372,10 @@ var getCurrentInstancesByNameAndDate = function(user, name, date){
 
 /* insert functions */
 
-var insertInstance = function(instance){
+var insertInstance = function(user, instance){
   return new Promise(function(resolve, reject){
     db.run("INSERT INTO instances (user, name, date, count, details, deleted, modified) VALUES($user, $name, $date, $count, $details, $deleted, $modified)", {
-      $user: instance.user,
+      $user: user,
       $name: instance.name,
       $date: instance.date, 
       $count: instance.count, 
@@ -389,14 +392,14 @@ var insertInstance = function(instance){
   });
 }
 
-var insertMetric = function(metric){
+var insertMetric = function(user, metric){
   return new Promise(function(resolve, reject){
     db.run("INSERT INTO metrics (user, name, desc, unit, type, dflt, deleted, arch, modified) VALUES($user, $name, $desc, $unit, $type, $dflt, $deleted, $arch, $modified)", {
-      $user: metric.user,
+      $user: user,
       $name: metric.name,
-      $desc: metric.date, 
-      $unit: metric.count, 
-      $type: metric.details, 
+      $desc: metric.desc, 
+      $unit: metric.unit, 
+      $type: metric.type, 
       $dflt: metric.dflt,
       $deleted: metric.deleted, 
       $arch: metric.arch,
@@ -413,14 +416,14 @@ var insertMetric = function(metric){
 
 /* update functions */
 
-var updateInstance = function(instance){
+var updateInstance = function(user, instance){
   return new Promise(function(resolve, reject){
-    db.run("UPDATE instances SET (count, details, deleted, modified) VALUES($count, $details, $deleted, $modified) WHERE user = $user AND name = $name AND date = $date",{
+    db.run("UPDATE instances SET count=$count, details=$details, deleted=$deleted, modified=$modified WHERE user = $user AND name = $name AND date = $date",{
       $count: instance.count,
       $details: instance.details,
       $deleted: instance.deleted,
       $modified: instance.modified,
-      $user: instance.user,
+      $user: user,
       $name: instance.name,
       $date: instance.date
     }, function(error){
@@ -433,18 +436,18 @@ var updateInstance = function(instance){
   });
 }
 
-var updateMetric = function(metric){
+var updateMetric = function(user, metric){
   return new Promise(function(resolve, reject){
-    db.run("UPDATE metrics SET (desc, unit, type, dflt, deleted, arch, modified) VALUES(desc, unit, type, dflt, deleted, arch, modified) WHERE user = $user AND name = $name",{
-      $user: metric.user,
-      $name: metric.name,
+    db.run("UPDATE metrics SET desc=$desc, unit=$unit, type=$type, dflt=$dflt, deleted=$deleted, arch=$arch, modified=$modified WHERE user = $user AND name = $name",{
       $desc: metric.desc,
       $unit: metric.unit,
       $type: metric.type,
       $dflt: metric.dflt,
       $deleted: metric.deleted,
       $arch: metric.arch,
-      $modified: metric.modified
+      $modified: metric.modified,
+      $user: user,
+      $name: metric.name
     }, function(error){
       if(error != null){
         reject(error);
