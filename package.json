@@ -2,6 +2,7 @@
   "name": "node-token-jwt",
   "main": "server.js",
   "dependencies": {
+    "bcrypt": "^1.0.3",
     "body-parser": "^1.14.1",
     "express": "^4.13.3",
     "jade": "^1.11.0",

@@ -2,14 +2,16 @@ var express = require('express');
 var app = express();
 
 var bodyParser = require('body-parser');
-var morgan = require('morgan');
+//var morgan = require('morgan');
 // var mongoose = require('mongoose');
 
 var _ = require('underscore');
 
 var jwt = require('jsonwebtoken');
 var config = require('./config');
-var User = require('./app/models/user');
+var bcrypt = require('bcrypt');
+var bcryptSaltRounds = 12;
+//var User = require('./app/models/user');
 
 var sqlite3 = require('sqlite3').verbose()
 //var db = new sqlite3.Database(':memory:')
@@ -21,14 +23,14 @@ app.engine('.jade', require('jade').__express);
 
 var port = process.env.PORT || 8080;
 // mongoose.connect(config.database);
-// app.set('superSecret', config.secret);
+app.set('superSecret', config.secret);
 
 app.use(bodyParser.urlencoded({ extended:false }));
 app.use(bodyParser.json());
 
 app.use(express.static('resources'))
 
-app.use(morgan('dev'));
+// app.use(morgan('dev'));
 
 app.get('/', function(req, res){
   res.render("index");
@@ -40,10 +42,31 @@ app.get('/', function(req, res){
 });
 */
 
+app.post('/auth', function(req, res){
+  // console.log(config);
+  var username = req.body.username;
+  var password = req.body.password;
+  if(username == null || password == null){
+    res.send("null username or password received");
+  }
+
+  getAuthToken(username, password).then(function(token){
+    res.json({'authtoken': token});
+  }).catch(function(error){
+    res.send(error);
+    //TODO
+  });
+
+});
+
 app.get('/metrics', function(req, res){
+  //TODO: this should be the auth user once auth is set up
+  //TODO: handle reject()
   getAllMetrics(req.query.user).then(function(metrics){
     res.send(metrics);
-  })
+  }).catch(function(error){
+    //TODO:
+  });
 });
 
 /* Get recorded instances of a given metric(s), optionally within a given number of days */
@@ -64,6 +87,8 @@ app.get('/data', function(req, res){
     });
 
     res.send(data);
+  }).catch(function(error){
+    //TODO
   });
   
 });
@@ -216,6 +241,7 @@ app.get('/setup', function(req, res) {
 
 
 
+
 // API ROUTES -------------------
 
 // get an instance of the router for api routes
@@ -309,9 +335,51 @@ app.use('/api', apiRoutes);
 app.listen(port);
 console.log('Magic happens at http://localhost:'+ port);
 
+
+
+
 /* ***************** */
 /* db util functions */
 /* ***************** */
+
+/* auth functions */
+var getAuthToken = function(username, password){
+  // console.log(username);
+  // console.log(password);
+  return new Promise(function(resolve, reject){
+    db.all('SELECT password, disabled FROM users where username=?', [username], function(err, rows){
+      console.log(err);
+      // console.log(rows);
+      if(err !== null || rows === null || rows.length < 1){
+        reject('user not found');
+      }else{
+        var user = rows[0];
+        // bcrypt.hash(password, bcryptSaltRounds, function(err, hash){
+          // console.log(err);
+          // console.log(hash);
+        // })
+        bcrypt.compare(password, user.password, function(err, res) {
+          // console.log('password compare');
+          // console.log(err);
+          // console.log(res);
+          // res == true
+          if(res === true){
+            payload = { disabled: user.diabled };
+            var token = jwt.sign(payload, app.get('superSecret'), {
+              expiresIn: 86400 // expires in 24 hours
+            });
+            resolve(token);
+          }else{
+            reject('password incorrect');
+          }
+        });
+      }
+    });
+    
+  });
+};
+
+
 
 /* get functions */
 
