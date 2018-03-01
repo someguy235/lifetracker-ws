@@ -25,10 +25,28 @@ var port = process.env.PORT || 8080;
 // mongoose.connect(config.database);
 app.set('superSecret', config.secret);
 
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS, DETELE');
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+
+  // intercept OPTIONS method
+  if ('OPTIONS' == req.method) {
+    res.send(200);
+  }
+  else {
+    next();
+  }
+
+  // next();
+});
+
+
 app.use(bodyParser.urlencoded({ extended:false }));
 app.use(bodyParser.json());
 
 app.use(express.static('resources'))
+
 
 // app.use(morgan('dev'));
 
@@ -53,7 +71,17 @@ apiRoutes.post('/auth', function(req, res){
     // res.send("null username or password received");
   // }
 
+  console.log('/auth');
+  // console.log(req);
+  console.log(req.body);
+  console.log(req.username);
+  console.log(req.password);
+  // console.log(req.json);
+  // console.log(req.body.username);
+  // console.log(req.body.password);
+  
   getAuthToken(req.body.username, req.body.password).then(function(token){
+    console.log(token);
     res.json({'authtoken': token});
   }).catch(function(error){
     res.send(error);
