@@ -65,28 +65,35 @@ var apiRoutes = express.Router();
 
 apiRoutes.post('/auth', function(req, res){
   // console.log(config);
-  // var username = req.body.username;
-  // var password = req.body.password;
-  // if(username == null || password == null){
-    // res.send("null username or password received");
-  // }
-
   console.log('/auth');
-  // console.log(req);
-  console.log(req.body);
-  console.log(req.username);
-  console.log(req.password);
-  // console.log(req.json);
-  // console.log(req.body.username);
-  // console.log(req.body.password);
+  var username = (req.body.username != null && req.body.username != undefined && req.body.username !== '') ? req.body.username : false;
+  var password = (req.body.password != null && req.body.password != undefined && req.body.password !== '') ? req.body.password : false;
+  var token = (req.body.token != null && req.body.token != undefined && req.body.token !== '') ? req.body.token : false;
+
+  console.log(username);
+  console.log(password);
+  console.log(token);
   
-  getAuthToken(req.body.username, req.body.password).then(function(token){
-    console.log(token);
-    res.json({'authtoken': token});
-  }).catch(function(error){
-    res.send(error);
-    //TODO
-  });
+  if(username && password){
+    console.log('getting auth token');
+    getAuthToken(req.body.username, req.body.password).then(function(token){
+      console.log(token);
+      res.json({'authtoken': token});
+    }).catch(function(error){
+      res.send(error);
+      //TODO
+    });
+  } else if(token){
+    console.log('checking auth token');
+    checkAuthToken(token).then(function(decoded){
+      console.log(decoded)
+    }).catch(function(error){
+      res.send(error)
+    });
+  } else {
+    console.log('noting to auth');
+    res.send(401);
+  }
 
 });
 
@@ -377,27 +384,18 @@ console.log('Magic happens at http://localhost:'+ port);
 
 /* auth functions */
 var getAuthToken = function(username, password){
-  // console.log(username);
-  // console.log(password);
   return new Promise(function(resolve, reject){
     db.all('SELECT password, disabled FROM users where username=?', [username], function(err, rows){
-      // console.log(err);
-      // console.log(rows);
       if(err !== null || rows === null || rows.length < 1){
         reject('user not found');
       }else{
         var user = rows[0];
-        // bcrypt.hash(password, bcryptSaltRounds, function(err, hash){
-          // console.log(err);
-          // console.log(hash);
-        // })
         bcrypt.compare(password, user.password, function(err, res) {
-          // console.log('password compare');
-          // console.log(err);
-          // console.log(res);
-          // res == true
           if(res === true){
-            payload = { disabled: user.diabled };
+            payload = { 
+              username : username,
+              disabled : user.diabled 
+            };
             var token = jwt.sign(payload, app.get('superSecret'), {
               expiresIn: 86400 // expires in 24 hours
             });
@@ -407,12 +405,21 @@ var getAuthToken = function(username, password){
           }
         });
       }
-    });
-    
+    });  
   });
 };
 
-
+var checkAuthToken = function(username, token){
+  return new Promise(function(resolve, reject){
+    jwt.verify(token, app.get('superSecret'), function(err, decoded){
+      if(err){
+        reject(err);
+      } else{
+        resolve(decoded);
+      }
+    });
+  });
+}
 
 /* get functions */
 
