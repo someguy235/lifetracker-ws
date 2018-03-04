@@ -66,9 +66,13 @@ var apiRoutes = express.Router();
 apiRoutes.post('/auth', function(req, res){
   // console.log(config);
   console.log('/auth');
-  var username = (req.body.username != null && req.body.username != undefined && req.body.username !== '') ? req.body.username : false;
-  var password = (req.body.password != null && req.body.password != undefined && req.body.password !== '') ? req.body.password : false;
-  var token = (req.body.token != null && req.body.token != undefined && req.body.token !== '') ? req.body.token : false;
+  // var username = (req.body.username != null && req.body.username != undefined && req.body.username !== '') ? req.body.username : false;
+  // var password = (req.body.password != null && req.body.password != undefined && req.body.password !== '') ? req.body.password : false;
+  // var token = (req.body.token != null && req.body.token != undefined && req.body.token !== '') ? req.body.token : false;
+
+  var username = req.body.username;
+  var password = req.body.password;
+  var token = req.body.token;
 
   console.log(username);
   console.log(password);
@@ -76,7 +80,7 @@ apiRoutes.post('/auth', function(req, res){
   
   if(username && password){
     console.log('getting auth token');
-    getAuthToken(req.body.username, req.body.password).then(function(token){
+    getAuthToken(username, password).then(function(token){
       console.log(token);
       res.json({'authtoken': token});
     }).catch(function(error){
@@ -92,7 +96,7 @@ apiRoutes.post('/auth', function(req, res){
     });
   } else {
     console.log('noting to auth');
-    res.send(401);
+    res.sendStatus(401);
   }
 
 });
