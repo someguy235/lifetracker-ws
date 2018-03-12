@@ -65,7 +65,7 @@ var apiRoutes = express.Router();
 
 apiRoutes.post('/auth', function(req, res){
   // console.log(config);
-  console.log('/auth');
+  // console.log('/auth');
   // var username = (req.body.username != null && req.body.username != undefined && req.body.username !== '') ? req.body.username : false;
   // var password = (req.body.password != null && req.body.password != undefined && req.body.password !== '') ? req.body.password : false;
   // var token = (req.body.token != null && req.body.token != undefined && req.body.token !== '') ? req.body.token : false;
@@ -74,28 +74,28 @@ apiRoutes.post('/auth', function(req, res){
   var password = req.body.password;
   var token = req.body.token;
 
-  console.log(username);
-  console.log(password);
-  console.log(token);
+  // console.log(username);
+  // console.log(password);
+  // console.log(token);
   
   if(username && password){
-    console.log('getting auth token');
+    // console.log('getting auth token');
     getAuthToken(username, password).then(function(token){
-      console.log(token);
+      // console.log(token);
       res.json({'authtoken': token});
     }).catch(function(error){
       res.send(error);
       //TODO
     });
   } else if(token){
-    console.log('checking auth token');
+    // console.log('checking auth token');
     checkAuthToken(token).then(function(decoded){
-      console.log(decoded)
+      // console.log(decoded)
     }).catch(function(error){
       res.send(error)
     });
   } else {
-    console.log('noting to auth');
+    // console.log('noting to auth');
     res.sendStatus(401);
   }
 
@@ -118,6 +118,7 @@ apiRoutes.use(function(req, res, next) {
         return res.json({ success: false, message: 'Failed to authenticate token.' });    
       } else {
         // if everything is good, save to request for use in other routes
+        //TODO: make sure this is the right token for this username
         req.decoded = decoded;    
         next();
       }
@@ -446,7 +447,7 @@ var getInstancesForRange = function(user, metrics, range){
       query += ' AND date >= "'+ date.toISOString().substring(0, 10) + '"';
     }
 
-    console.log(query);
+    // console.log(query);
     
     db.all(query, [user], function (err, rows) {
       resolve(rows);
