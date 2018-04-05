@@ -74,9 +74,9 @@ apiRoutes.post('/auth', function(req, res){
   var password = req.body.password;
   var token = req.body.token;
 
-  // console.log(username);
-  // console.log(password);
-  // console.log(token);
+  console.log(username);
+  console.log(password);
+  console.log(token);
   
   if(username && password){
     // console.log('getting auth token');
@@ -84,13 +84,15 @@ apiRoutes.post('/auth', function(req, res){
       // console.log(token);
       res.json({'authtoken': token});
     }).catch(function(error){
-      res.send(error);
+      //res.send(error);
+      res.sendStatus(401);
       //TODO
     });
   } else if(token){
-    // console.log('checking auth token');
+    console.log('checking auth token');
     checkAuthToken(token).then(function(decoded){
-      // console.log(decoded)
+      console.log(decoded);
+      res.sendStatus(200);
     }).catch(function(error){
       res.send(error)
     });
@@ -414,7 +416,9 @@ var getAuthToken = function(username, password){
   });
 };
 
-var checkAuthToken = function(username, token){
+//TODO (maybe): need username?
+//var checkAuthToken = function(username, token){
+var checkAuthToken = function(token){
   return new Promise(function(resolve, reject){
     jwt.verify(token, app.get('superSecret'), function(err, decoded){
       if(err){
